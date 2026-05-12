@@ -1,0 +1,52 @@
+name: "Release (github.sha)"
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with github.sha
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Show git state
+        run: |
+          echo "=== Git State ==="
+          echo "HEAD SHA: $(git rev-parse HEAD)"
+          echo "github.sha: ${{ github.sha }}"
+          echo "github.ref: $GITHUB_REF"
+          echo "Branch (git): $(git branch --show-current || echo 'DETACHED HEAD')"
+          echo ""
+          echo "=== Commits since last tag ==="
+          LAST_TAG=$(git tag --sort=-v:refname | head -1)
+          if [ -n "$LAST_TAG" ]; then
+            echo "Last tag: $LAST_TAG"
+            echo "Commits:"
+            git log ${LAST_TAG}..HEAD --oneline
+            echo "Count: $(git log ${LAST_TAG}..HEAD --oneline | wc -l)"
+          else
+            echo "No tags found"
+            git log --oneline
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install semantic-release
+        run: npm install -g semantic-release @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/github
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
